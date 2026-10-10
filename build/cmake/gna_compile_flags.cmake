@@ -46,7 +46,7 @@ if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     # remove debug_opt_report section from dll
     set(GNA_COMPILE_FLAGS_RELEASE ${GNA_COMPILE_FLAGS_RELEASE} /Qopt-report-embed-)
   elseif(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
-    set(GNA_COMPILE_FLAGS_RELEASE ${GNA_COMPILE_FLAGS_RELEASE} /O2)
+    set(GNA_COMPILE_FLAGS_RELEASE ${GNA_COMPILE_FLAGS_RELEASE} /O2 /arch:AVX2 /favor:INTEL64 /Ob2 /Ot /fp:fast)
   endif()
 
   # Linker options
@@ -107,7 +107,7 @@ else()
   set(GNA_COMPILE_FLAGS_DEBUG ${GNA_COMPILE_FLAGS_DEBUG}
       -g -O0)
   set(GNA_COMPILE_FLAGS_RELEASE ${GNA_COMPILE_FLAGS_RELEASE}
-      -fvisibility=hidden -fstack-protector-all -O3)
+      -fvisibility=hidden -fstack-protector-all -O3 -march=alderlake -mtune=alderlake -mavx2 -mno-avx512f)
 
   if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
     # ICC intrinsics inline expansion
