@@ -15,7 +15,7 @@ This edition dynamically scales and utilizes the advanced capabilities of the ho
 - **VNNI (DL Boost) Integration**: Activates Vector Neural Network Instructions dynamically when supported by the processor, vastly improving AI inference tasks.
 - **Portable Optimizations**: Built with aggressive `-O3` / `/O2` and fast-math enabled across all relevant x64 processors without artificially restricting architecture support.
 
-## Kurulum (Installation)
+## Installation
 
 To install the Python bindings and activate the accelerator natively on your Windows machine:
 
@@ -31,7 +31,7 @@ To compile the heavily optimized C++ core natively using MSVC (Visual Studio Bui
 build_windows.bat
 ```
 
-## Kullanım (Usage)
+## Usage
 
 You can easily integrate this accelerator into your LLM and Python-based agent projects:
 
