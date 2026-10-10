@@ -45,3 +45,25 @@ Please report questions, issues and suggestions using:
 
 ---
 \* Other names and brands may be claimed as the property of others.
+## LLM Accelerator (Windows)
+
+This repository has been updated to actively work on Windows as an accelerator for:
+- Claude Code
+- Google Antigravity
+- Open LM
+
+### Installation
+``bash
+pip install .
+``
+
+### Usage
+``python
+from gna_accelerator import GNAAccelerator
+
+accelerator = GNAAccelerator(model_target='Google Antigravity')
+accelerator.initialize()
+output = accelerator.accelerate_inference('Your query here')
+print(output)
+accelerator.shutdown()
+``
