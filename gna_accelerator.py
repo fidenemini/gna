@@ -61,16 +61,41 @@ class GNAAccelerator:
             
         return None
 
+    def _setup_api_bindings(self):
+        """Configure ctypes arguments and return types for the GNA API."""
+        if not self.lib:
+            return
+            
+        try:
+            # GNA2_API enum Gna2Status Gna2DeviceGetCount(uint32_t * deviceCount);
+            self.lib.Gna2DeviceGetCount.argtypes = [ctypes.POINTER(ctypes.c_uint32)]
+            self.lib.Gna2DeviceGetCount.restype = ctypes.c_int
+            
+            # GNA2_API enum Gna2Status Gna2DeviceGetVersion(uint32_t deviceIndex, enum Gna2DeviceVersion * deviceVersion);
+            self.lib.Gna2DeviceGetVersion.argtypes = [ctypes.c_uint32, ctypes.POINTER(ctypes.c_int)]
+            self.lib.Gna2DeviceGetVersion.restype = ctypes.c_int
+            
+            # GNA2_API enum Gna2Status Gna2DeviceOpen(uint32_t deviceIndex);
+            self.lib.Gna2DeviceOpen.argtypes = [ctypes.c_uint32]
+            self.lib.Gna2DeviceOpen.restype = ctypes.c_int
+            
+            # GNA2_API enum Gna2Status Gna2DeviceClose(uint32_t deviceIndex);
+            self.lib.Gna2DeviceClose.argtypes = [ctypes.c_uint32]
+            self.lib.Gna2DeviceClose.restype = ctypes.c_int
+            
+        except AttributeError as e:
+            self.logger.warning(f"Could not bind GNA API methods: {e}")
+
     def initialize(self, num_threads: Optional[int] = None, use_avx2: bool = True, use_vnni: bool = True):
         """
         Initializes the GNA hardware or emulation environment.
-        Dynamically optimized for the host CPU.
+        Dynamically optimized for the host CPU (e.g. Intel Core i7-1355U with GNA 3.0).
         """
         with self._lock:
             self.logger.info(f"Initializing GNA Accelerator for {self.model_target}...")
+            self._setup_api_bindings()
             
             if num_threads is None:
-                # Fallback gracefully if cpu_count is undetermined
                 num_threads = os.cpu_count() or 4
                 
             self.logger.info("Applying CPU Optimizations...")
@@ -82,10 +107,45 @@ class GNAAccelerator:
                 self.logger.info("Enabling Vector Neural Network Instructions (VNNI) for INT8 DL Boost.")
                 
             if self.lib:
-                # Example ctypes bindings could be defined here:
-                # self.lib.Gna2DeviceOpen.argtypes = [ctypes.POINTER(ctypes.c_uint32)]
-                # self.lib.Gna2DeviceOpen.restype = ctypes.c_int32
-                pass
+                # 1. Query Devices
+                device_count = ctypes.c_uint32(0)
+                status = self.lib.Gna2DeviceGetCount(ctypes.byref(device_count))
+                if status != 0: # Gna2StatusSuccess is 0
+                    self.logger.error(f"Failed to get GNA device count (status code: {status})")
+                    return
+                
+                self.logger.info(f"Found {device_count.value} GNA devices.")
+                
+                # 2. Iterate and open the best hardware device
+                self.active_device_index = None
+                self.is_hardware_accelerated = False
+                
+                for idx in range(device_count.value):
+                    device_ver = ctypes.c_int(0)
+                    if self.lib.Gna2DeviceGetVersion(idx, ctypes.byref(device_ver)) == 0:
+                        version_val = device_ver.value
+                        ver_hex = hex(version_val)
+                        if version_val == 0:
+                            self.logger.info(f"Device {idx}: Software Emulation (Fallback)")
+                        else:
+                            self.logger.info(f"Device {idx}: Hardware GNA (Version {ver_hex})")
+                            # If it's a hardware device (e.g. 0x30 for GNA 3.0 on i7-1355U), prioritize it!
+                            if version_val >= 0x30:
+                                self.active_device_index = idx
+                                self.is_hardware_accelerated = True
+                                break # Found optimal hardware
+                
+                # If no hardware GNA 3.0+ found, default to index 0 (usually emulation or default)
+                if self.active_device_index is None and device_count.value > 0:
+                    self.active_device_index = 0
+                
+                if self.active_device_index is not None:
+                    status = self.lib.Gna2DeviceOpen(self.active_device_index)
+                    if status == 0:
+                        accel_type = "Hardware GNA DL Boost" if self.is_hardware_accelerated else "Software Emulation"
+                        self.logger.info(f"Successfully opened {accel_type} Device (Index {self.active_device_index}).")
+                    else:
+                        self.logger.error(f"Failed to open GNA device {self.active_device_index} (status code: {status})")
                 
             self.logger.info("GNA Accelerator initialized and locked for safety.")
 
